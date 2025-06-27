@@ -16,48 +16,140 @@ A professional React-based web interface for controlling Dynamixel motors via ES
 ## 🏗️ Project Structure
 
 ```
-src/
-├── components/           # React components
-│   ├── charts/          # Chart components
-│   │   └── RealTimeChart.jsx
-│   ├── challenges/      # Challenge-specific components
-│   │   └── Challenge10.jsx
-│   ├── common/          # Reusable UI components
-│   │   ├── LoadingOverlay.jsx
-│   │   └── NotificationSystem.jsx
-│   ├── dashboard/       # Dashboard components
-│   │   ├── Dashboard.jsx
-│   │   ├── ConnectionCard.jsx
-│   │   ├── QuickActions.jsx
-│   │   ├── StatsCard.jsx
-│   │   ├── SystemOverview.jsx
-│   │   └── RecentLogs.jsx
-│   ├── layout/          # Layout components
-│   │   ├── Layout.jsx
-│   │   ├── Header.jsx
-│   │   └── Sidebar.jsx
-│   └── robot/           # Motor control components
-│       ├── MotorControl.jsx
-│       ├── MotorCard.jsx
-│       └── AdvancedControls.jsx
-├── hooks/               # Custom React hooks
-│   ├── useRobot.js      # Robot control hook
-│   └── useWebSerial.js  # WebSerial communication hook
-├── services/            # API and external services
-│   ├── api.js           # HTTP API service
-│   └── websocketService.js
-├── store/               # Redux store
-│   ├── store.js         # Store configuration
-│   ├── robotSlice.js    # Robot state management
-│   ├── challengeSlice.js # Challenge state management
-│   └── uiSlice.js       # UI state management
-├── utils/               # Utility functions
-│   ├── constants.js     # Application constants
-│   └── helpers.js       # Helper functions
-├── App.js               # Main App component
-├── App.css              # Global styles
-├── index.js             # Entry point
-└── index.css            # Base styles
+```
+└── 📁public
+    ├── favicon.ico
+    ├── index.html
+    ├── logo192.png
+    ├── logo512.png
+    ├── manifest.json
+└── 📁src
+    └── 📁__mocks__
+        ├── robotService.js
+        ├── websocketService.js
+    └── 📁components
+        └── 📁auth
+            ├── AuthGuard.jsx
+            ├── LoginForm.jsx
+            ├── ProtectedRoute.jsx
+            ├── RegisterForm.jsx
+        └── 📁challenges
+            ├── Challenge1.jsx
+            ├── Challenge2.jsx
+            ├── ChallengeCard.jsx
+            ├── ChallengeHistoryDialogue.jsx
+            ├── ChallengeMap.jsx
+            ├── ChallengeProgressPanel.jsx
+            ├── challengeRegistry.js
+            ├── ChallengeRunner.jsx
+            ├── CodeEditor.jsx
+            ├── ConsoleOutput.jsx
+            ├── ControlPanel.jsx
+            ├── GenericChallenge.jsx
+            ├── index.js
+            ├── ManualMovementChallenge.jsx
+            ├── PDControlChallenge.jsx
+            ├── QuizChallenge.jsx
+            ├── ResultsDisplay.jsx
+            ├── RobotVisualizer.jsx
+        └── 📁common
+            ├── ConfirmDialog.jsx
+            ├── ConnectionStatus.jsx
+            ├── ErrorBoundary.jsx
+            ├── Footer.jsx
+            ├── Header.jsx
+            ├── index.js
+            ├── LoadingSpinner.jsx
+            ├── Modal.jsx
+            ├── Notification.jsx
+            ├── ProgressBar.jsx
+            ├── StatusIndicator.jsx
+            ├── Tooltip.jsx
+        └── 📁dashboard
+            ├── Achievements.jsx
+            ├── ChallengeGrid.jsx
+            ├── CompactDashboard.jsx
+            ├── DashboardHeader.jsx
+            ├── DashboardLayout.jsx
+            ├── DashboardPage.jsx
+            ├── DashboardProvider.jsx
+            ├── DashboardStatus.jsx
+            ├── index.js
+            ├── ProgressTracker.jsx
+            ├── QuickActions.jsx
+            ├── RecentActivity.jsx
+            ├── RobotStatus.css
+            ├── RobotStatus.jsx
+        └── 📁debug
+            ├── AuthDebug.jsx
+        └── 📁robot
+            ├── CalibrationTool.jsx
+            ├── ControlPanel.jsx
+            ├── index.js
+            ├── JointController.jsx
+            ├── KinematicsDisplay.jsx
+            ├── MotorStatus.jsx
+            ├── RobotDashboard.jsx
+            ├── RobotLogger.jsx
+            ├── RobotVisualizer.jsx
+            ├── SafetyControls.jsx
+            ├── StatusMonitor.jsx
+            ├── text
+            ├── TrajectoryPlanner.jsx
+    └── 📁contexts
+        ├── ErrorContext.jsx
+    └── 📁hooks
+        ├── useAuth.js
+        ├── useChallenges.js
+        ├── useRobot.js
+        ├── useRobotController.js
+        ├── useSafeRobotData.js
+        ├── useWebSocketService.js
+    └── 📁pages
+        ├── ChallengePage.jsx
+        ├── ChallengesListPage.jsx
+        ├── DashboardPage.jsx
+        ├── HomePage.jsx
+        ├── IndividualChallengePage.jsx
+        ├── LeaderboardPage.jsx
+        ├── ProfilePage.jsx
+    └── 📁services
+        ├── api.js
+        ├── auth.js
+        ├── authService.js
+        ├── challengeService.js
+        ├── robotController.js
+        ├── robotService.js
+        ├── websocketService.js
+    └── 📁store
+        ├── authSlice.js
+        ├── challengeSlice.js
+        ├── index.js
+        ├── robotSlice.js
+        ├── uiSlice.js
+    └── 📁styles
+        ├── animations.css
+        ├── components.css
+        ├── dashboard.css
+        ├── globals.css
+        ├── robotStatus.css
+        ├── themes.js
+        ├── variables.css
+    └── 📁utils
+        ├── ChallengeData.js
+        ├── constants.js
+        ├── globalErrorHandler.js
+        ├── helpers.js
+        ├── mockChallengeData.js
+        ├── performanceMonitor.js
+        ├── robotUtils
+        ├── testUtils.js
+        ├── validation.js
+
+├── App.js               
+├── packange.json              
+├── packange-lock.json             
+└── .env           
 ```
 
 ## 🛠️ Technology Stack
