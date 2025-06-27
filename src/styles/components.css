@@ -1,0 +1,43 @@
+/* Component-specific styles */
+.main-content {
+  min-height: calc(100vh - 64px);
+  padding-top: 64px;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.App {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Challenge Cards */
+.challenge-card {
+  transition: transform 0.2s ease-in-out;
+}
+
+.challenge-card:hover {
+  transform: translateY(-4px);
+}
+
+/* Robot Visualizer */
+.robot-canvas {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Status indicators */
+.status-connected {
+  color: #4CAF50;
+}
+
+.status-disconnected {
+  color: #F44336;
+}
+
+.status-connecting {
+  color: #FF9800;
+}

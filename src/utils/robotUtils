@@ -1,0 +1,312 @@
+import { ROBOT_SPECS } from './constants';
+import { clamp } from './helpers';
+
+/**
+ * Convert raw position value to degrees
+ * @param {number} raw - Raw position value (0-4095)
+ * @returns {number} Position in degrees (0-360)
+ */
+export const rawToDegrees = (raw) => {
+  if (typeof raw !== 'number' || isNaN(raw)) return 0;
+  
+  const clampedRaw = clamp(raw, 0, ROBOT_SPECS.MAX_POSITION);
+  return (clampedRaw / ROBOT_SPECS.MAX_POSITION) * 360;
+};
+
+/**
+ * Convert degrees to raw position value
+ * @param {number} degrees - Position in degrees (0-360)
+ * @returns {number} Raw position value (0-4095)
+ */
+export const degreesToPositionRaw = (degrees) => {
+  if (typeof degrees !== 'number' || isNaN(degrees)) return ROBOT_SPECS.MAX_POSITION / 2;
+  
+  // Normalize degrees to 0-360 range
+  const normalizedDegrees = ((degrees % 360) + 360) % 360;
+  return Math.round((normalizedDegrees / 360) * ROBOT_SPECS.MAX_POSITION);
+};
+
+/**
+ * Convert raw velocity to degrees per second
+ * @param {number} raw - Raw velocity value
+ * @returns {number} Velocity in degrees per second
+ */
+export const rawToDegreesPerSecond = (raw) => {
+  if (typeof raw !== 'number' || isNaN(raw)) return 0;
+  
+  // Convert raw velocity to RPM, then to degrees per second
+  const rpm = raw * ROBOT_SPECS.VELOCITY_RESOLUTION;
+  return (rpm * 360) / 60; // RPM to degrees per second
+};
+
+/**
+ * Convert degrees per second to raw velocity value
+ * @param {number} degreesPerSec - Velocity in degrees per second
+ * @returns {number} Raw velocity value
+ */
+export const degreesToVelocityRaw = (degreesPerSec) => {
+  if (typeof degreesPerSec !== 'number' || isNaN(degreesPerSec)) return 0;
+  
+  // Convert degrees per second to RPM, then to raw value
+  const rpm = (degreesPerSec * 60) / 360;
+  const raw = Math.round(rpm / ROBOT_SPECS.VELOCITY_RESOLUTION);
+  
+  return clamp(raw, ROBOT_SPECS.MIN_VELOCITY, ROBOT_SPECS.MAX_VELOCITY);
+};
+
+/**
+ * Convert raw temperature to Celsius
+ * @param {number} raw - Raw temperature value
+ * @returns {number} Temperature in Celsius
+ */
+export const rawToTemperature = (raw) => {
+  if (typeof raw !== 'number' || isNaN(raw)) return 25;
+  
+  // XL330 temperature conversion (assuming standard Dynamixel formula)
+  return raw; // Direct mapping for XL330
+};
+
+/**
+ * Convert raw voltage to volts
+ * @param {number} raw - Raw voltage value
+ * @returns {number} Voltage in volts
+ */
+export const rawToVoltage = (raw) => {
+  if (typeof raw !== 'number' || isNaN(raw)) return 7.0;
+  
+  // XL330 voltage conversion
+  return raw / 10.0; // Voltage in 0.1V units
+};
+
+/**
+ * Convert raw current to amperes
+ * @param {number} raw - Raw current value
+ * @returns {number} Current in amperes
+ */
+export const rawToCurrent = (raw) => {
+  if (typeof raw !== 'number' || isNaN(raw)) return 0;
+  
+  // XL330 current conversion
+  return raw * 0.00269; // Current in mA, convert to A
+};
+
+/**
+ * Calculate forward kinematics for 3-DOF planar robot
+ * @param {number[]} jointAngles - Array of joint angles in degrees [q1, q2, q3]
+ * @param {number[]} linkLengths - Array of link lengths [L1, L2, L3]
+ * @returns {object} End effector position {x, y, angle}
+ */
+export const forwardKinematics = (jointAngles, linkLengths = [0.1, 0.1, 0.05]) => {
+  if (!Array.isArray(jointAngles) || jointAngles.length !== 3) {
+    return { x: 0, y: 0, angle: 0 };
+  }
+
+  const [q1, q2, q3] = jointAngles.map(angle => (angle * Math.PI) / 180); // Convert to radians
+  const [L1, L2, L3] = linkLengths;
+
+  // Calculate cumulative angles
+  const theta1 = q1;
+  const theta2 = theta1 + q2;
+  const theta3 = theta2 + q3;
+
+  // Calculate end effector position
+  const x = L1 * Math.cos(theta1) + L2 * Math.cos(theta2) + L3 * Math.cos(theta3);
+  const y = L1 * Math.sin(theta1) + L2 * Math.sin(theta2) + L3 * Math.sin(theta3);
+  const angle = (theta3 * 180) / Math.PI; // Convert back to degrees
+
+  return { x, y, angle };
+};
+
+/**
+ * Calculate inverse kinematics for 3-DOF planar robot
+ * @param {number} x - Target X position
+ * @param {number} y - Target Y position
+ * @param {number} targetAngle - Target end effector angle in degrees
+ * @param {number[]} linkLengths - Array of link lengths [L1, L2, L3]
+ * @returns {number[]|null} Joint angles in degrees [q1, q2, q3] or null if unreachable
+ */
+export const inverseKinematics = (x, y, targetAngle, linkLengths = [0.1, 0.1, 0.05]) => {
+  const [L1, L2, L3] = linkLengths;
+  const targetAngleRad = (targetAngle * Math.PI) / 180;
+
+  // Calculate wrist position (subtract end effector contribution)
+  const xw = x - L3 * Math.cos(targetAngleRad);
+  const yw = y - L3 * Math.sin(targetAngleRad);
+
+  // Distance from origin to wrist
+  const r = Math.sqrt(xw * xw + yw * yw);
+
+  // Check if target is reachable
+  if (r > L1 + L2 || r < Math.abs(L1 - L2)) {
+    return null; // Target unreachable
+  }
+
+  // Calculate q2 using law of cosines
+  const cosQ2 = (r * r - L1 * L1 - L2 * L2) / (2 * L1 * L2);
+  const q2 = Math.acos(clamp(cosQ2, -1, 1));
+
+  // Calculate q1
+  const alpha = Math.atan2(yw, xw);
+  const beta = Math.acos(clamp((L1 * L1 + r * r - L2 * L2) / (2 * L1 * r), -1, 1));
+  const q1 = alpha - beta; // Elbow-down solution
+
+  // Calculate q3
+  const q3 = targetAngleRad - q1 - q2;
+
+  // Convert to degrees
+  return [
+    (q1 * 180) / Math.PI,
+    (q2 * 180) / Math.PI,
+    (q3 * 180) / Math.PI,
+  ];
+};
+
+/**
+ * Calculate Jacobian matrix for 3-DOF planar robot
+ * @param {number[]} jointAngles - Array of joint angles in degrees [q1, q2, q3]
+ * @param {number[]} linkLengths - Array of link lengths [L1, L2, L3]
+ * @returns {number[][]} 3x3 Jacobian matrix
+ */
+export const calculateJacobian = (jointAngles, linkLengths = [0.1, 0.1, 0.05]) => {
+  const [q1, q2, q3] = jointAngles.map(angle => (angle * Math.PI) / 180);
+  const [L1, L2, L3] = linkLengths;
+
+  const theta1 = q1;
+  const theta2 = theta1 + q2;
+  const theta3 = theta2 + q3;
+
+  // Jacobian matrix elements
+  const J = [
+    [
+      -L1 * Math.sin(theta1) - L2 * Math.sin(theta2) - L3 * Math.sin(theta3),
+      -L2 * Math.sin(theta2) - L3 * Math.sin(theta3),
+      -L3 * Math.sin(theta3),
+    ],
+    [
+      L1 * Math.cos(theta1) + L2 * Math.cos(theta2) + L3 * Math.cos(theta3),
+      L2 * Math.cos(theta2) + L3 * Math.cos(theta3),
+      L3 * Math.cos(theta3),
+    ],
+    [1, 1, 1], // Angular velocity relationship
+  ];
+
+  return J;
+};
+
+/**
+ * Check if a position is within the robot's workspace
+ * @param {number} x - X position
+ * @param {number} y - Y position
+ * @param {number[]} linkLengths - Array of link lengths [L1, L2, L3]
+ * @returns {boolean} True if position is reachable
+ */
+export const isPositionReachable = (x, y, linkLengths = [0.1, 0.1, 0.05]) => {
+  const [L1, L2, L3] = linkLengths;
+  const totalReach = L1 + L2 + L3;
+  const minReach = Math.abs(L1 - L2 - L3);
+  
+  const distance = Math.sqrt(x * x + y * y);
+  
+  return distance >= minReach && distance <= totalReach;
+};
+
+/**
+ * Generate workspace boundary points
+ * @param {number[]} linkLengths - Array of link lengths [L1, L2, L3]
+ * @param {number} resolution - Number of points to generate
+ * @returns {object[]} Array of {x, y} boundary points
+ */
+export const generateWorkspaceBoundary = (linkLengths = [0.1, 0.1, 0.05], resolution = 360) => {
+  const [L1, L2, L3] = linkLengths;
+  const outerRadius = L1 + L2 + L3;
+  const innerRadius = Math.abs(L1 - L2 - L3);
+  
+  const outerBoundary = [];
+  const innerBoundary = [];
+  
+  for (let i = 0; i < resolution; i++) {
+    const angle = (i * 2 * Math.PI) / resolution;
+    
+    outerBoundary.push({
+      x: outerRadius * Math.cos(angle),
+      y: outerRadius * Math.sin(angle),
+    });
+    
+    if (innerRadius > 0) {
+      innerBoundary.push({
+        x: innerRadius * Math.cos(angle),
+        y: innerRadius * Math.sin(angle),
+      });
+    }
+  }
+  
+  return { outer: outerBoundary, inner: innerBoundary };
+};
+
+/**
+ * Calculate trajectory between two points
+ * @param {object} start - Start position {x, y, angle}
+ * @param {object} end - End position {x, y, angle}
+ * @param {number} duration - Duration in seconds
+ * @param {number} steps - Number of trajectory points
+ * @returns {object[]} Array of trajectory points with time stamps
+ */
+export const generateTrajectory = (start, end, duration, steps = 100) => {
+  const trajectory = [];
+  
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const time = t * duration;
+    
+    // Use cubic polynomial for smooth motion
+    const s = 3 * t * t - 2 * t * t * t; // S-curve velocity profile
+    
+    const point = {
+      time,
+      x: start.x + s * (end.x - start.x),
+      y: start.y + s * (end.y - start.y),
+      angle: start.angle + s * (end.angle - start.angle),
+    };
+    
+    trajectory.push(point);
+  }
+  
+  return trajectory;
+};
+
+/**
+ * Validate joint angles against limits
+ * @param {number[]} jointAngles - Array of joint angles in degrees
+ * @param {object} limits - Joint limits {min: [], max: []}
+ * @returns {boolean} True if all angles are within limits
+ */
+export const validateJointLimits = (jointAngles, limits = null) => {
+  const defaultLimits = {
+    min: [0, 0, 0],
+    max: [360, 360, 360],
+  };
+  
+  const actualLimits = limits || defaultLimits;
+  
+  return jointAngles.every((angle, i) => 
+    angle >= actualLimits.min[i] && angle <= actualLimits.max[i]
+  );
+};
+
+/**
+ * Convert joint configuration to motor positions
+ * @param {number[]} jointAngles - Joint angles in degrees
+ * @returns {number[]} Motor positions in raw values
+ */
+export const jointsToMotorPositions = (jointAngles) => {
+  return jointAngles.map(angle => degreesToPositionRaw(angle));
+};
+
+/**
+ * Convert motor positions to joint configuration
+ * @param {number[]} motorPositions - Motor positions in raw values
+ * @returns {number[]} Joint angles in degrees
+ */
+export const motorPositionsToJoints = (motorPositions) => {
+  return motorPositions.map(position => rawToDegrees(position));
+};

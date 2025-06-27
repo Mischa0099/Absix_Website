@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Challenge 7 - Orientation Visualization</title>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: white;
+      margin: 0;
+      overflow: hidden;
+    }
+    #overlay {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 10px;
+      border-radius: 6px;
+      z-index: 10;
+    }
+    #log {
+      font-family: monospace;
+      font-size: 12px;
+      height: 150px;
+      overflow-y: scroll;
+      background: #000;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 4px;
+      color: #0f0;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <div id="overlay">
+    <button id="connectBtn">🔌 Connect ESP32</button>
+    <button id="disconnectBtn" disabled>❌ Disconnect</button>
+    <p><strong>Orientation Error:</strong> <span id="error">--</span> rad</p>
+    <div id="log"></div>
+  </div>
+  <script>
+    let port, reader, writer, angles = [0, 0, 0];
+    let matrixTarget = new THREE.Matrix4().identity();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let motorIndex = 0;
+
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const logEl = document.getElementById('log');
+
+    function log(msg) {
+      logEl.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    connectBtn.onclick = async () => {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        reader = port.readable.getReader();
+        writer = port.writable.getWriter();
+        disconnectBtn.disabled = false;
+        connectBtn.disabled = true;
+        log('Connected to ESP32');
+        readLoop();
+        setInterval(readAngles, 1000);
+      } catch (err) {
+        log(`Connection failed: ${err}`);
+      }
+    };
+
+    disconnectBtn.onclick = async () => {
+      reader.cancel();
+      await reader.releaseLock();
+      await writer.releaseLock();
+      await port.close();
+      disconnectBtn.disabled = true;
+      connectBtn.disabled = false;
+      log('Disconnected.');
+    };
+
+    async function sendCommand(cmd) {
+      if (!writer) return;
+      const data = new TextEncoder().encode(cmd + ';');
+      await writer.write(data);
+    }
+
+    async function readLoop() {
+      while (port.readable) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value);
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        lines.forEach(line => processLine(line.trim()));
+      }
+    }
+
+    function processLine(line) {
+      log('↪️ ' + line);
+      if (line.startsWith('REL_ANGLE:')) {
+        const rad = parseFloat(line.substring(10));
+        angles[motorIndex] = rad;
+        motorIndex++;
+        if (motorIndex === 3) {
+          updateOrientation();
+          motorIndex = 0;
+        }
+      }
+    }
+
+    function readAngles() {
+      for (let i = 1; i <= 3; i++) {
+        sendCommand(`GET_REL_ANGLE:${i}`);
+      }
+    }
+
+    // --- 3D Visualization with THREE.js ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const axesHelper = new THREE.AxesHelper(1);
+    scene.add(axesHelper);
+
+    const orientationGroup = new THREE.Group();
+    scene.add(orientationGroup);
+
+    const length = 0.5;
+    const xAxis = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), length, 0xff0000);
+    const yAxis = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0), length, 0x00ff00);
+    const zAxis = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), length, 0x0000ff);
+    orientationGroup.add(xAxis, yAxis, zAxis);
+
+    camera.position.set(1, 1, 2);
+    camera.lookAt(0, 0, 0);
+
+    function updateOrientation() {
+      const [theta1, theta2, theta3] = angles;
+      const Rz = new THREE.Matrix4().makeRotationZ(theta1);
+      const Ry = new THREE.Matrix4().makeRotationY(theta2);
+      const Rx = new THREE.Matrix4().makeRotationX(theta3);
+      const resultMatrix = new THREE.Matrix4().multiplyMatrices(Rz, Ry).multiply(Rx);
+      orientationGroup.setRotationFromMatrix(resultMatrix);
+
+      const error = computeOrientationError(resultMatrix, matrixTarget);
+      document.getElementById('error').innerText = error.toFixed(4);
+    }
+
+    function computeOrientationError(R1, R2) {
+      const m1 = R1.elements;
+      const m2 = R2.elements;
+      const trace = m1[0]*m2[0] + m1[1]*m2[1] + m1[2]*m2[2] +
+                    m1[4]*m2[4] + m1[5]*m2[5] + m1[6]*m2[6] +
+                    m1[8]*m2[8] + m1[9]*m2[9] + m1[10]*m2[10];
+      const angle = Math.acos(Math.min(Math.max((trace - 1) / 2, -1), 1));
+      return angle;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
